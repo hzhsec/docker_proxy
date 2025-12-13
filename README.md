@@ -4,117 +4,121 @@
 
 -----
 
-# Docker 镜像源自动测速与配置工具
+# Docker 网络优化工具箱
 
-这是一个用于 Linux 环境的 Bash 脚本，旨在自动化 Docker 镜像源的优选与配置过程。它从外部配置文件读取镜像地址，并发进行连接测试，自动将速度最快的源写入 Docker 配置，同时筛选出失效的源以便清理。
+本项目包含两个 Bash 脚本，分别用于解决 Docker 在国内网络环境下的两大难题：
 
-## 功能特点
+1.  **镜像下载慢/连接超时**：通过 `update_mirrors.sh` 自动测速并优选国内镜像源。
+2.  **Docker Search 失败/完全无法连接**：通过 `docker_proxy.sh` 为 Docker 守护进程配置网络代理。
 
-  * **外部配置**：从同目录下的 `mirrors.txt` 读取 URL，方便管理，无需修改脚本代码。
-  * **智能测速**：自动测试连接延迟，过滤掉无法连接的源。
-  * **自动配置**：根据测速结果，将有效源按响应速度排序写入 `/etc/docker/daemon.json`。
-  * **服务重启**：自动重启 Docker 服务以应用更改。
-  * **失效反馈**：脚本运行结束后，列出所有连接失败的 URL，方便用户维护源列表。
-  * **格式兼容**：自动处理 Windows/Linux 换行符差异，支持 `#` 注释。
+## 📂 目录结构建议
 
-##  前置要求
-
-  * Linux 操作系统 (CentOS, Ubuntu, Debian 等)
-  * 已安装 Docker
-  * 拥有 `sudo` 权限 (需要修改系统配置和重启服务)
-  * 系统已安装 `curl`
-
-##  目录结构
-
-在使用前，请确保你的文件目录结构如下：
+为了方便管理，建议将脚本和配置文件组织在同一目录下：
 
 ```text
 .
-├── update_mirrors.sh   # 主脚本文件
-└── mirrors.txt         # 镜像源配置文件
+├── docker_yuan.sh    # [脚本1] 镜像源测速与自动配置
+├── mirrors.txt          # [配置1] 镜像源 URL 列表
+├── docker_proxy.sh      # [脚本2] 代理管理工具
+└── proxies.txt          # [配置2] 代理节点列表
 ```
 
-##  快速开始
+## 🛠️ 初始化
 
-### 1\. 创建配置文件
+首次使用前，请赋予脚本执行权限：
 
-在脚本同级目录下创建名为 `mirrors.txt` 的文件，并将你的镜像源地址写入其中（一行一个）。
+```bash
+chmod +x docker_yuan.sh docker_proxy.sh
+```
 
-**示例 `mirrors.txt` 内容：**
+-----
+
+## 🚀 工具一：镜像源自动测速 (update\_mirrors.sh)
+
+**适用场景**：`docker pull` 速度慢，或者某些特定的国内加速器失效。该脚本会自动测试连通性，将最快的源写入配置。
+
+### 1\. 配置文件 (`mirrors.txt`)
+
+在同目录下创建 `mirrors.txt`，写入你收集的镜像源地址（一行一个）。
 
 ```text
 https://docker.1ms.run
 https://docker.xuanyuan.me
-# 这是一个注释，下面这个不想测了
-# https://slow-mirror.example.com
+# 支持注释，这行不会被读取
 https://docker.m.daocloud.io
-https://hub.rat.dev
 ```
 
-### 2\. 准备脚本
+### 2\. 使用方法
 
-将脚本内容保存为 `update_mirrors.sh`，并赋予执行权限：
+直接运行脚本（需要 sudo 权限）：
 
 ```bash
-chmod +x update_mirrors.sh
-```
-
-### 3\. 运行脚本
-
-执行脚本（脚本内部包含 sudo 操作，运行过程中可能需要输入密码）：
-
-```bash
-./update_mirrors.sh
-```
-
-##  输出示例
-
-运行脚本后，你将看到类似以下的输出：
-
-```text
-📖 正在读取 mirrors.txt ...
-🔍 开始测试 5 个镜像源...
-------------------------------------------------
-Testing https://docker.1ms.run...            [OK] 120ms
-Testing https://docker.xuanyuan.me...        [OK] 450ms
-Testing https://bad.example.com...           [FAILED]
-Testing https://docker.m.daocloud.io...      [OK] 89ms
-...
-------------------------------------------------
-
-📝 正在写入 /etc/docker/daemon.json ...
-
-✅ 已配置的有效镜像源 (按速度排序)：
- - https://docker.m.daocloud.io (89ms)
- - https://docker.1ms.run (120ms)
- - https://docker.xuanyuan.me (450ms)
-
-🔁 正在重启 Docker...
-🚀 Docker 重启成功，镜像源已更新。
-
-========================================
-⚠️  以下镜像源连接失败 (建议从 mirrors.txt 中删除/更新)：
-========================================
-https://bad.example.com
-========================================
+sudo ./docker_yuan.sh
 ```
 <img width="560" height="586" alt="image" src="https://github.com/user-attachments/assets/8b6b14f6-215c-41eb-bcc2-09586529868e" />
 
-## ⚙️ 高级配置 (可选)
+### 3\. 功能特性
 
-如果你需要调整超时时间，可以修改脚本中的 `curl` 参数：
+  * **自动测速**：并发测试列表中的 URL，按响应时间排序。
+  * **智能筛选**：自动剔除无法连接的死链。
+  * **结果反馈**：脚本运行结束后，会列出**失效的 URL**，方便你维护 `mirrors.txt`。
 
-```bash
-# --connect-timeout: 连接超时时间 (秒)
-# --max-time: 最大总操作时间 (秒)
-curl -s --connect-timeout 2 --max-time 4 "$mirror/v2/" > /dev/null
+#### ⚠️ 注意事项
+   1.  **覆盖风险**：脚本会**覆盖**现有的 `/etc/docker/daemon.json` 文件中的 `registry-mirrors` 配置。如果你有该文件有其他复杂配置（如 `insecure-registries` 或 `log-driver`），请先备份该文件。
+   2.  **Sudo 权限**：由于涉及修改 `/etc` 下的文件和重启系统服务，脚本必须在有 sudo 权限的用户下运行。
+
+-----
+
+## 🌐 工具二：Docker 代理管理 (docker\_proxy.sh)
+
+注意:需要结合自己的代理使用,当你发现无法连接代理时,注意观察防火墙
+
+**适用场景**：`docker search` 命令报错、需要拉取被完全屏蔽的镜像（如 gcr.io, quay.io），或所有国内镜像源都失效时。
+
+### 1\. 配置文件 (`proxies.txt`)
+
+在同目录下创建 `proxies.txt`，格式为 `协议://IP:端口 # 备注`。
+
+```text
+http://127.0.0.1:7890 # 本地 Clash
+socks5://192.168.1.5:1080 # 局域网节点
+http://user:pass@89.46.223.201:3128 # 外部付费节点
 ```
 
-## ⚠️ 注意事项
+### 2\. 使用方法
 
-1.  **覆盖风险**：脚本会**覆盖**现有的 `/etc/docker/daemon.json` 文件中的 `registry-mirrors` 配置。如果你有该文件有其他复杂配置（如 `insecure-registries` 或 `log-driver`），请先备份该文件。
-2.  **Sudo 权限**：由于涉及修改 `/etc` 下的文件和重启系统服务，脚本必须在有 sudo 权限的用户下运行。
+#### 交互式菜单（推荐）
 
-## 📋 维护建议
+不带参数运行，进入选择菜单：
 
-每次运行完脚本后，请查看底部的 **"以下镜像源连接失败"** 列表。建议定期将 `mirrors.txt` 中长期失败的 URL 删除，以加快下次脚本运行的速度。
+```bash
+sudo ./docker_proxy.sh
+```
+
+  * 选择数字启用对应代理。
+  * 选择 `0` 关闭代理。
+
+#### 命令行快捷模式
+
+  * **关闭代理**：
+    ```bash
+    sudo ./docker_proxy.sh off
+    ```
+  * **启用列表中的第 N 个代理**：
+    ```bash
+    sudo ./docker_proxy.sh 1
+    ```
+<img width="868" height="401" alt="image" src="https://github.com/user-attachments/assets/507a4b46-8226-4ba7-b380-ca63912fb093" />
+
+### 3\. 功能特性
+
+  * **连通性预检**：应用代理前会自动测试该节点是否能连通 Google，防止配置无效代理导致 Docker 失联。
+  * **无残留切换**：切换或关闭代理时会自动重载 daemon 并重启 Docker 服务。
+
+
+
+
+
+
+
+
