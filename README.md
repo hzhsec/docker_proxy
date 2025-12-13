@@ -61,7 +61,7 @@ sudo ./docker_yuan.sh
 
   * **自动测速**：并发测试列表中的 URL，按响应时间排序。
   * **智能筛选**：自动剔除无法连接的死链。
-  * **结果反馈**：脚本运行结束后，会列出**失效的 URL**，方便你维护 `mirrors.txt`。
+  * **结果反馈**：脚本运行结束后，会列出**失效的 URL**，并排在mirrors.txt最后,方便你维护 `mirrors.txt`。
 
 #### ⚠️ 注意事项
    1.  **覆盖风险**：脚本会**覆盖**现有的 `/etc/docker/daemon.json` 文件中的 `registry-mirrors` 配置。如果你有该文件有其他复杂配置（如 `insecure-registries` 或 `log-driver`），请先备份该文件。
