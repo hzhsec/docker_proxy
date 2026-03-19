@@ -49,15 +49,16 @@ for mirror in "${mirrors[@]}"; do
   
   printf "Testing %-40s " "$mirror..."
   
-  # 使用毫秒计时
-  start_time=$(date +%s%3N)
+  # 使用 curl 内置的时间统计功能（微秒级精度，兼容性好）
   # 这里增加了 --connect-timeout 防止卡顿太久，使用 /v2/ 标准 endpoint
-  # 错误码 $? 为 0 表示 curl 成功
-  curl -s --connect-timeout 2 --max-time 4 "$mirror/v2/" > /dev/null
+  curl_result=$(curl -s -o /dev/null -w "%{http_code},%{time_total}" --connect-timeout 2 --max-time 4 "$mirror/v2/")
+  http_code=$(echo "$curl_result" | cut -d',' -f1)
+  time_total=$(echo "$curl_result" | cut -d',' -f2)
   
-  if [ $? -eq 0 ]; then
-    end_time=$(date +%s%3N)
-    time_taken=$((end_time - start_time))
+  # 检查 HTTP 状态码是否为 200 或 401（Docker registry 未授权也是正常的）
+  if [ "$http_code" = "200" ] || [ "$http_code" = "401" ]; then
+    # 将秒转换为毫秒（保留整数）
+    time_taken=$(echo "$time_total * 1000 / 1" | bc 2>/dev/null || echo "0")
     echo -e "\033[32m[OK] ${time_taken}ms\033[0m" # 绿色显示成功
     echo "$time_taken $mirror" >> "$temp_file"
     valid_mirrors+=("$mirror")
